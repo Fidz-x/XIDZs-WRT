@@ -240,6 +240,10 @@ check_status "mv /usr/share/netdata/web/lib/jquery-3.6.0.min.js /usr/share/netda
 log_status "INFO" "Creating VnStat directory..."
 check_status "mkdir -p /etc/vnstat" "VnStat directory created"
 
+# Sett Permission vnstat.conf
+log_status "INFO" "Sett Permission 600 vnstat.conf"
+check_status "chmod 600 /etc/vnstat.conf"
+
 # restart netdata and vnstat
 log_status "INFO" "Restarting Netdata and VnStat services..."
 check_status "/etc/init.d/netdata restart" "Netdata service restarted"
