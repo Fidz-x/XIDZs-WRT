@@ -17,7 +17,7 @@ PACKAGES+=" busybox libc adb coreutils-base64 coreutils-stty coreutils-stat core
 zoneinfo-core zoneinfo-asia liblua libubus-lua libiwinfo libiwinfo-data libiwinfo-lua \
 libjson-script luci-lib-base luci-lib-ip luci-lib-ipkg luci-lib-jsonc luci-lib-nixio liblucihttp \
 liblucihttp-lua curl wget-ssl tar unzip uuidgen screen jq \
-block-mount cgi-io smartmontools dnsmasq-full rpcd rpcd-mod-file rpcd-mod-iwinfo rpcd-mod-luci \
+block-mount cgi-io dnsmasq-full rpcd rpcd-mod-file rpcd-mod-iwinfo rpcd-mod-luci \
 rpcd-mod-rrdns uhttpd uhttpd-mod-ubus luci-base luci-compat luci luci-ssl \
 luci-mod-admin-full luci-mod-network luci-mod-status luci-mod-system luci-proto-ipv6 luci-proto-ppp"                                                                                   
 
