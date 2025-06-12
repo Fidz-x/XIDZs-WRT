@@ -339,8 +339,10 @@ for pkg in luci-app-openclash luci-app-nikki luci-app-passwall; do
     fi
 done
 
-# Setup uhttpd and PHP8
+# Konfigurasi uhttpd dan PHP8
 log_status "INFO" "Configuring uhttpd and PHP8..."
+
+# uhttpd configuration
 check_status "uci set uhttpd.main.ubus_prefix='/ubus'" "uhttpd ubus prefix set"
 check_status "uci set uhttpd.main.interpreter='.php=/usr/bin/php-cgi'" "uhttpd PHP interpreter configured"
 check_status "uci set uhttpd.main.index_page='cgi-bin/luci'" "uhttpd index page set to LuCI"
@@ -348,15 +350,24 @@ check_status "uci add_list uhttpd.main.index_page='index.html'" "Added index.htm
 check_status "uci add_list uhttpd.main.index_page='index.php'" "Added index.php to uhttpd index pages"
 check_status "uci commit uhttpd" "uhttpd configuration committed"
 
-check_status "sed -i -E 's|memory_limit = [0-9]+M|memory_limit = 128M|g' /etc/php.ini" "PHP memory limit set to 128M"
-check_status "sed -i -E 's|display_errors = On|display_errors = Off|g' /etc/php.ini" "PHP display errors disabled"
-check_status "ln -sf /usr/bin/php-cli /usr/bin/php" "PHP CLI symlink created"
+# PHP configuration
+if [ -f "/etc/php.ini" ]; then
+    cp /etc/php.ini /etc/php.ini.bak
+    check_status "sed -i 's|^memory_limit = .*|memory_limit = 128M|g' /etc/php.ini" "PHP memory limit set to 128M"
+    check_status "sed -i 's|^max_execution_time = .*|max_execution_time = 60|g' /etc/php.ini" "Max Eksekusi PHP 60s"
+    check_status "sed -i 's|^display_errors = .*|display_errors = Off|g' /etc/php.ini" "PHP display errors disabled"
+    check_status "sed -i 's|^;*date\.timezone =.*|date.timezone = Asia/Jakarta|g' /etc/php.ini" "Timezone Asia/Jakarta"
+    log_status "SUCCESS" "PHP settings configured"
+else
+    log_status "WARNING" "/etc/php.ini not found, skipping PHP configuration"
+fi
 
 if [ -d /usr/lib/php8 ] && [ ! -d /usr/lib/php ]; then
     check_status "ln -sf /usr/lib/php8 /usr/lib/php" "PHP8 library symlink created"
 fi
 
 check_status "/etc/init.d/uhttpd restart" "uhttpd service restarted"
+log_status "SUCCESS" "uhttpd and PHP8 configuration completed"
 
 log_status "SUCCESS" "All setup completed successfully"
 check_status "rm -rf /etc/uci-defaults/$(basename $0)" "Cleanup: removed script from uci-defaults"
