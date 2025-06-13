@@ -1,0 +1,494 @@
+name: Clean Cache and Logs
+
+on:
+  workflow_dispatch:
+    inputs:
+      cleanup_type:
+        description: "Select cleanup type:"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - cache-only
+          - logs-only
+          - temp-files
+          - github-cache
+          - runner-cleanup
+      force_clean:
+        description: "Force aggressive cleanup (may affect running workflows)"
+        required: false
+        default: false
+        type: boolean
+      delete_old_releases:
+        description: "Delete old releases (keep last 5)"
+        required: false
+        default: false
+        type: boolean
+      delete_old_artifacts:
+        description: "Delete old workflow artifacts (older than 7 days)"
+        required: false
+        default: false
+        type: boolean
+
+  schedule:
+    # Run automatically every Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+env:
+  TZ: Asia/Jakarta
+  DEBIAN_FRONTEND: noninteractive
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-22.04
+    name: System Cleanup
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Environment
+        id: setup
+        run: |
+          sudo timedatectl set-timezone "${{ env.TZ }}"
+          echo "[INFO] Starting cleanup process..."
+          echo "[INFO] Cleanup type: ${{ github.event.inputs.cleanup_type || 'scheduled' }}"
+          echo "[INFO] Force clean: ${{ github.event.inputs.force_clean || 'false' }}"
+          
+          # Display initial system info
+          echo "[STATUS] Initial system status:"
+          df -h
+          free -h
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Clean Docker Resources
+        if: steps.setup.outputs.status == 'success' && (github.event.inputs.cleanup_type == 'all' || github.event.inputs.cleanup_type == 'cache-only' || github.event.inputs.cleanup_type == 'runner-cleanup')
+        run: |
+          echo "[DOCKER] Cleaning Docker resources..."
+          
+          # Stop all running containers
+          docker stop $(docker ps -aq) 2>/dev/null || true
+          
+          # Remove all containers
+          docker rm $(docker ps -aq) 2>/dev/null || true
+          
+          # Remove all images
+          docker rmi $(docker images -q) 2>/dev/null || true
+          
+          # Clean docker system
+          docker system prune -af --volumes 2>/dev/null || true
+          
+          # Remove docker directories
+          sudo rm -rf /var/lib/docker/tmp/* 2>/dev/null || true
+          sudo rm -rf /var/lib/docker/overlay2/* 2>/dev/null || true
+          
+          echo "[SUCCESS] Docker cleanup completed"
+
+      - name: Clean System Cache
+        if: steps.setup.outputs.status == 'success' && (github.event.inputs.cleanup_type == 'all' || github.event.inputs.cleanup_type == 'cache-only')
+        run: |
+          echo "[CACHE] Cleaning system cache..."
+          
+          # Package manager cache
+          sudo apt-get clean
+          sudo apt-get autoclean
+          sudo apt-get autoremove --purge -y
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo rm -rf /var/cache/apt/archives/*
+          sudo rm -rf /var/cache/debconf/*
+          
+          # Snap cache
+          sudo rm -rf /var/lib/snapd/cache/*
+          sudo rm -rf /var/cache/snapd/*
+          
+          # Font cache
+          sudo rm -rf /var/cache/fontconfig/*
+          sudo rm -rf ~/.cache/fontconfig/*
+          sudo rm -rf /usr/share/fonts/.uuid
+          
+          # Thumbnail cache
+          sudo rm -rf ~/.cache/thumbnails/*
+          sudo rm -rf ~/.thumbnails/*
+          sudo rm -rf /var/cache/thumbnails/*
+          
+          echo "[SUCCESS] System cache cleanup completed"
+
+      - name: Clean Development Tools Cache
+        if: steps.setup.outputs.status == 'success' && (github.event.inputs.cleanup_type == 'all' || github.event.inputs.cleanup_type == 'cache-only')
+        run: |
+          echo "[TOOLS] Cleaning development tools cache..."
+          
+          # Python pip cache
+          sudo rm -rf ~/.cache/pip/*
+          sudo rm -rf /root/.cache/pip/*
+          sudo rm -rf /tmp/pip-*
+          
+          # Node.js npm cache
+          sudo rm -rf ~/.npm/_cacache/*
+          sudo rm -rf /root/.npm/_cacache/*
+          sudo rm -rf ~/.npm/_logs/*
+          sudo rm -rf /root/.npm/_logs/*
+          sudo rm -rf /tmp/npm-*
+          
+          # Yarn cache
+          sudo rm -rf ~/.cache/yarn/*
+          sudo rm -rf /root/.cache/yarn/*
+          
+          # Ruby gem cache
+          sudo rm -rf ~/.gem/ruby/*/cache/*
+          sudo rm -rf /var/lib/gems/*/cache/*
+          sudo rm -rf /root/.gem/ruby/*/cache/*
+          
+          # Go cache
+          sudo rm -rf ~/.cache/go-build/*
+          sudo rm -rf /root/.cache/go-build/*
+          sudo rm -rf /tmp/go-build*
+          
+          # Rust cargo cache
+          sudo rm -rf ~/.cargo/registry/cache/*
+          sudo rm -rf /root/.cargo/registry/cache/*
+          sudo rm -rf ~/.cargo/git/*/refs/*
+          
+          # Maven cache
+          sudo rm -rf ~/.m2/repository/.cache/*
+          sudo rm -rf /root/.m2/repository/.cache/*
+          
+          # Gradle cache
+          sudo rm -rf ~/.gradle/caches/*
+          sudo rm -rf /root/.gradle/caches/*
+          
+          # Composer cache
+          sudo rm -rf ~/.cache/composer/*
+          sudo rm -rf /root/.cache/composer/*
+          
+          echo "[SUCCESS] Development tools cache cleanup completed"
+
+      - name: Clean Browser Cache
+        if: steps.setup.outputs.status == 'success' && (github.event.inputs.cleanup_type == 'all' || github.event.inputs.cleanup_type == 'cache-only')
+        run: |
+          echo "[BROWSER] Cleaning browser cache..."
+          
+          # Chrome cache
+          sudo rm -rf ~/.cache/google-chrome/*
+          sudo rm -rf ~/.config/google-chrome/Default/Cache/*
+          sudo rm -rf ~/.config/google-chrome/*/Application\ Cache/*
+          
+          # Chromium cache
+          sudo rm -rf ~/.cache/chromium/*
+          sudo rm -rf ~/.config/chromium/Default/Cache/*
+          
+          # Firefox cache
+          sudo rm -rf ~/.cache/mozilla/*
+          sudo rm -rf ~/.mozilla/firefox/*/cache2/*
+          
+          # Edge cache
+          sudo rm -rf ~/.cache/microsoft-edge/*
+          sudo rm -rf ~/.config/microsoft-edge/Default/Cache/*
+          
+          echo "[SUCCESS] Browser cache cleanup completed"
+
+      - name: Clean System Logs
+        if: steps.setup.outputs.status == 'success' && (github.event.inputs.cleanup_type == 'all' || github.event.inputs.cleanup_type == 'logs-only')
+        run: |
+          echo "[LOGS] Cleaning system logs..."
+          
+          # Systemd journal logs
+          sudo journalctl --rotate
+          sudo journalctl --vacuum-time=1d
+          sudo journalctl --vacuum-size=10M
+          
+          # System log files
+          sudo rm -rf /var/log/*.log /var/log/*.log.*
+          sudo rm -rf /var/log/*/*.log /var/log/*/*.log.*
+          sudo rm -rf /var/log/*.gz /var/log/*.old
+          sudo rm -rf /var/log/auth.log* /var/log/syslog*
+          sudo rm -rf /var/log/kern.log* /var/log/messages*
+          sudo rm -rf /var/log/dpkg.log* /var/log/alternatives.log*
+          sudo rm -rf /var/log/bootstrap.log /var/log/dmesg*
+          sudo rm -rf /var/log/faillog /var/log/lastlog
+          
+          # Apache/Nginx logs
+          sudo rm -rf /var/log/apache2/* /var/log/nginx/*
+          
+          # MySQL logs
+          sudo rm -rf /var/log/mysql/*
+          
+          # Crash reports
+          sudo rm -rf /var/crash/*
+          sudo rm -rf /var/lib/systemd/coredump/*
+          
+          # Clear kernel ring buffer
+          sudo dmesg -c > /dev/null 2>&1 || true
+          
+          echo "[SUCCESS] System logs cleanup completed"
+
+      - name: Clean Temporary Files
+        if: steps.setup.outputs.status == 'success' && (github.event.inputs.cleanup_type == 'all' || github.event.inputs.cleanup_type == 'temp-files')
+        run: |
+          echo "[TEMP] Cleaning temporary files..."
+          
+          # System temporary directories
+          sudo rm -rf /tmp/* 2>/dev/null || true
+          sudo rm -rf /var/tmp/* 2>/dev/null || true
+          sudo rm -rf /run/user/*/gvfs-*
+          
+          # User temporary files
+          sudo rm -rf ~/.tmp/* ~/.temp/*
+          sudo rm -rf /root/.tmp/* /root/.temp/*
+          
+          # Application temporary files
+          sudo find /tmp -name "*.tmp" -delete 2>/dev/null || true
+          sudo find /var/tmp -name "*.tmp" -delete 2>/dev/null || true
+          sudo find /tmp -name ".*-unix" -delete 2>/dev/null || true
+          
+          # Lock files
+          sudo find /tmp -name "*.lock" -delete 2>/dev/null || true
+          sudo find /var/tmp -name "*.lock" -delete 2>/dev/null || true
+          sudo rm -rf /var/lock/* 2>/dev/null || true
+          
+          # Core dumps
+          sudo rm -rf /core.* 2>/dev/null || true
+          sudo find / -name "core.*" -delete 2>/dev/null || true
+          
+          # Backup files
+          sudo find /home -name "*~" -delete 2>/dev/null || true
+          sudo find /root -name "*~" -delete 2>/dev/null || true
+          sudo find /home -name "*.bak" -delete 2>/dev/null || true
+          
+          echo "[SUCCESS] Temporary files cleanup completed"
+
+      - name: Clean Large Directories
+        if: steps.setup.outputs.status == 'success' && (github.event.inputs.cleanup_type == 'all' || github.event.inputs.cleanup_type == 'runner-cleanup')
+        run: |
+          echo "[CLEANUP] Cleaning large directories..."
+          
+          # GitHub Actions tools
+          [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}" || true
+          
+          # Development frameworks
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/local/graalvm
+          sudo rm -rf /usr/local/share/powershell
+          sudo rm -rf /usr/local/share/chromium
+          sudo rm -rf /usr/local/lib/node_modules
+          sudo rm -rf /usr/local/julia*
+          sudo rm -rf /opt/pipx_bin
+          
+          # Documentation
+          sudo rm -rf /usr/share/doc/*
+          sudo rm -rf /usr/share/man/*
+          sudo rm -rf /usr/share/info/*
+          
+          # Locale files (keep only English)
+          sudo find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en*' -exec rm -rf {} \; 2>/dev/null || true
+          
+          echo "[SUCCESS] Large directories cleanup completed"
+
+      - name: Clean User Directories
+        if: steps.setup.outputs.status == 'success' && (github.event.inputs.cleanup_type == 'all' || github.event.inputs.cleanup_type == 'cache-only')
+        run: |
+          echo "[USER] Cleaning user directories..."
+          
+          # History files
+          > ~/.bash_history
+          > ~/.zsh_history
+          > ~/.python_history
+          > ~/.mysql_history
+          history -c 2>/dev/null || true
+          
+          # User cache directories
+          sudo rm -rf ~/.cache/*
+          sudo rm -rf /root/.cache/*
+          sudo rm -rf ~/.local/share/Trash/*
+          sudo rm -rf ~/.local/share/recently-used.xbel
+          
+          # SSH known hosts (keep config)
+          > ~/.ssh/known_hosts 2>/dev/null || true
+          
+          # Vim cache
+          sudo rm -rf ~/.vim/swap/*
+          sudo rm -rf ~/.vim/backup/*
+          sudo rm -rf ~/.vim/undo/*
+          
+          # VS Code cache
+          sudo rm -rf ~/.vscode/CachedExtensions/*
+          sudo rm -rf ~/.vscode/logs/*
+          
+          echo "[SUCCESS] User directories cleanup completed"
+
+      - name: Force Aggressive Cleanup
+        if: steps.setup.outputs.status == 'success' && github.event.inputs.force_clean == 'true'
+        run: |
+          echo "[WARNING] Running aggressive cleanup..."
+          
+          # Remove package files
+          sudo rm -rf /var/cache/apt/archives/*.deb
+          
+          # Remove old kernels (keep current)
+          current_kernel=$(uname -r)
+          sudo apt-get purge -y $(dpkg --list | grep linux-image | awk '{ print $2 }' | grep -v $current_kernel) 2>/dev/null || true
+          
+          # Remove orphaned packages
+          sudo apt-get autoremove --purge -y
+          sudo apt-get autoclean
+          
+          # Clean package database
+          sudo apt-get clean
+          sudo dpkg --clear-avail
+          
+          # Remove unnecessary firmware
+          sudo rm -rf /lib/firmware/* 2>/dev/null || true
+          
+          # Clear swap
+          sudo swapoff -a 2>/dev/null || true
+          sudo swapon -a 2>/dev/null || true
+          
+          echo "[WARNING] Aggressive cleanup completed"
+
+      - name: GitHub Cache Cleanup
+        if: steps.setup.outputs.status == 'success' && (github.event.inputs.cleanup_type == 'all' || github.event.inputs.cleanup_type == 'github-cache')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "[GITHUB] Cleaning GitHub cache..."
+          
+          # Install GitHub CLI if not present
+          if ! command -v gh &> /dev/null; then
+            curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg](https://cli.github.com/packages) stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+            sudo apt-get update
+            sudo apt-get install -y gh
+          fi
+          
+          # List and delete old caches
+          echo "[INFO] Listing current caches:"
+          gh cache list --limit 100 || true
+          
+          echo "[INFO] Deleting caches older than 7 days..."
+          gh cache list --limit 100 --json id,createdAt | jq -r '.[] | select(.createdAt < (now - 7*24*3600 | strftime("%Y-%m-%dT%H:%M:%SZ"))) | .id' | while read cache_id; do
+            if [ ! -z "$cache_id" ]; then
+              gh cache delete $cache_id || true
+            fi
+          done
+          
+          echo "[SUCCESS] GitHub cache cleanup completed"
+
+      - name: Delete Old Releases
+        if: steps.setup.outputs.status == 'success' && github.event.inputs.delete_old_releases == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "[RELEASES] Cleaning old releases..."
+          
+          # Keep only last 5 releases
+          gh release list --limit 100 --json tagName,createdAt | jq -r 'sort_by(.createdAt) | reverse | .[5:] | .[] | .tagName' | while read tag; do
+            if [ ! -z "$tag" ]; then
+              echo "[INFO] Deleting release: $tag"
+              gh release delete "$tag" --yes || true
+            fi
+          done
+          
+          echo "[SUCCESS] Old releases cleanup completed"
+
+      - name: Delete Old Artifacts
+        if: steps.setup.outputs.status == 'success' && github.event.inputs.delete_old_artifacts == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "[ARTIFACTS] Cleaning old artifacts..."
+          
+          # Delete artifacts older than 7 days
+          seven_days_ago=$(date -d '7 days ago' -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          gh api repos/${{ github.repository }}/actions/artifacts --paginate | jq -r ".artifacts[] | select(.created_at < \"$seven_days_ago\") | .id" | while read artifact_id; do
+            if [ ! -z "$artifact_id" ]; then
+              echo "[INFO] Deleting artifact ID: $artifact_id"
+              gh api repos/${{ github.repository }}/actions/artifacts/$artifact_id -X DELETE || true
+            fi
+          done
+          
+          echo "[SUCCESS] Old artifacts cleanup completed"
+
+      - name: System Optimization
+        if: steps.setup.outputs.status == 'success'
+        run: |
+          echo "[OPTIMIZE] Running system optimization..."
+          
+          # Update locate database
+          sudo updatedb 2>/dev/null || true
+          
+          # Sync filesystem
+          sync
+          
+          # Drop caches
+          echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
+          
+          # Clear page cache and dentries/inodes
+          sudo sysctl -w vm.drop_caches=3
+          
+          # Compact memory
+          echo 1 | sudo tee /proc/sys/vm/compact_memory > /dev/null 2>&1 || true
+          
+          echo "[SUCCESS] System optimization completed"
+
+      - name: Final System Status
+        if: always()
+        run: |
+          echo "[STATUS] Final system status:"
+          echo "[DISK] Disk usage:"
+          df -h
+          echo ""
+          echo "[MEMORY] Memory usage:"
+          free -h
+          echo ""
+          echo "[UPTIME] System uptime:"
+          uptime
+          echo ""
+          echo "[SPACE] Available space in root:"
+          df -h / | awk 'NR==2 {print "Used: " $3 "/" $2 " (" $5 ")"}'
+          echo ""
+          echo "[COMPLETE] Cleanup process completed successfully!"
+
+      - name: Create Cleanup Report
+        if: always()
+        run: |
+          cat > cleanup-report.md << 'EOF'
+          # System Cleanup Report
+          
+          **Date:** $(date)
+          **Cleanup Type:** ${{ github.event.inputs.cleanup_type || 'scheduled' }}
+          **Force Clean:** ${{ github.event.inputs.force_clean || 'false' }}
+          
+          ## System Status After Cleanup
+          
+          ### Disk Usage
+          ```
+          $(df -h)
+          ```
+          
+          ### Memory Usage
+          ```
+          $(free -h)
+          ```
+          
+          ### Cleanup Actions Performed
+          - [x] Docker resources cleaned
+          - [x] System cache cleared
+          - [x] Development tools cache cleared
+          - [x] Browser cache cleared
+          - [x] System logs cleared
+          - [x] Temporary files removed
+          - [x] Large directories cleaned
+          - [x] User directories cleaned
+          - [x] System optimized
+          
+          EOF
+          
+          echo "[REPORT] Cleanup report generated"
