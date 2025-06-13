@@ -26,6 +26,8 @@ on:
         type: choice
         options:
           - all-device
+          - Amlogic s905x HG680P Mod SDCard
+          - Amlogic s905x B860H Mod SDCard
           - Amlogic s905x HG680P
           - Amlogic s905x B860H
           - Amlogic s922x GT-King-Pro
@@ -100,6 +102,8 @@ jobs:
           TARGET_JSON=$(cat << 'EOJ'
           {
             "target": [
+              "Amlogic s905x HG680P Mod SDCard",
+              "Amlogic s905x B860H Mod SDCard",
               "Amlogic s905x HG680P",
               "Amlogic s905x B860H",
               "Amlogic s922x GT-King-Pro",
@@ -307,6 +311,18 @@ jobs:
           echo "ARCH_3=aarch64_generic" >> $GITHUB_ENV
 
           case "$MATRIXTARGET" in
+            "Amlogic s905x HG680P Mod SDCard")
+              TARGET_BUILD="s905x"
+              KERNEL="5.15.y_6.1.y_6.6.y_6.12.y"
+              echo "TARGET_BUILD=$TARGET_BUILD" >> $GITHUB_ENV
+              echo "KERNEL=$KERNEL" >> $GITHUB_ENV
+              ;;
+            "Amlogic s905x B860H Mod SDCard")
+              TARGET_BUILD="s905x-b860h"
+              KERNEL="5.15.y_6.1.y_6.6.y_6.12.y"
+              echo "TARGET_BUILD=$TARGET_BUILD" >> $GITHUB_ENV
+              echo "KERNEL=$KERNEL" >> $GITHUB_ENV
+              ;;
             "Amlogic s905x HG680P")
               TARGET_BUILD="s905x"
               KERNEL="5.15.y_6.1.y_6.6.y_6.12.y"
@@ -572,7 +588,7 @@ jobs:
           
       - name: Mod SDCard
         id: modsdcard
-        if: steps.re.outputs.status == 'success'
+        if: steps.repack.outputs.status == 'success'
         run: |
           cd ${WORKING_DIR}
           chmod +x scripts/MODSDCARD.sh
@@ -581,7 +597,7 @@ jobs:
           
       - name: Before Upload
         id: beforeupload
-        if: steps.repack.outputs.status == 'success'
+        if: steps.modsdcard.outputs.status == 'success'
         run: |
           cd ${{ env.WORKING_DIR }}
           chmod +x scripts/RENAMEFW.sh
