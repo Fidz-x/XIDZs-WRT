@@ -143,35 +143,35 @@ jobs:
           sudo timedatectl set-timezone "${{ env.TZ }}"
 
           TYPE="OPHUB"
-          echo "TYPE=$TYPE" >> $GITHUB_OUTPUT
+          echo "type=$TYPE" >> $GITHUB_OUTPUT
 
           BASE="${RELEASE_BRANCH%:*}"
           BRANCH="${RELEASE_BRANCH#*:}"
           VEROP="$(echo "${BRANCH}" | awk -F. '{print $1"."$2}')"
 
-          echo "BASE=$BASE" >> $GITHUB_OUTPUT
-          echo "BRANCH=$BRANCH" >> $GITHUB_OUTPUT
-          echo "VEROP=$VEROP" >> $GITHUB_OUTPUT
-          echo "DOWNLOAD_BASE=https://downloads.${BASE}.org" >> $GITHUB_OUTPUT
+          echo "base=$BASE" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "verop=$VEROP" >> $GITHUB_OUTPUT
+          echo "download_base=https://downloads.${BASE}.org" >> $GITHUB_OUTPUT
 
           DATE=$(date +'%d%m%Y')
           DATETIME=$(date +'%d.%m.%Y-%H:%M:%S')
           DATEMONTH=$(date +"%B-%Y" | awk '{print tolower($0)}')
 
-          echo "DATE=$DATE" >> $GITHUB_OUTPUT
-          echo "DATETIME=$DATETIME" >> $GITHUB_OUTPUT
-          echo "DATEMONTH=$DATEMONTH" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "datetime=$DATETIME" >> $GITHUB_OUTPUT
+          echo "datemonth=$DATEMONTH" >> $GITHUB_OUTPUT
 
           if [ "${BASE}" == "openwrt" ]; then
             RELEASE_NAME="Ophub-OpenWRT-${BRANCH}-${DATE}"
             RELEASE_TAG="ophub-openwrt-${BRANCH}-${DATE}"
-            echo "RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_OUTPUT
-            echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_OUTPUT
+            echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+            echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
           elif [ "${BASE}" == "immortalwrt" ]; then
             RELEASE_NAME="Ophub-ImmortalWRT-${BRANCH}-${DATE}"
             RELEASE_TAG="ophub-immortalwrt-${BRANCH}-${DATE}"
-            echo "RELEASE_NAME=$RELEASE_NAME" >> $GITHUB_OUTPUT
-            echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_OUTPUT
+            echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+            echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
           fi
           echo "status=success" >> $GITHUB_OUTPUT
 
@@ -260,21 +260,146 @@ jobs:
       - name: Initialization environment
         id: init
         run: |
-          docker rmi $(docker images -q) 2>/dev/null
+          echo "🧹 Starting system cleanup and initialization..."
+          
+          # Remove Docker images to free space
+          echo "Removing Docker images..."
+          docker rmi $(docker images -q) 2>/dev/null || true
+          docker system prune -af 2>/dev/null || true
+          
+          # Remove GitHub Actions tools directory
           [[ -n "${AGENT_TOOLSDIRECTORY}" ]] && sudo rm -rf "${AGENT_TOOLSDIRECTORY}"
-          sudo rm -rf /usr/share/dotnet /etc/apt/sources.list.d /usr/local/lib/android 2>/dev/null
+          
+          # Remove large directories and files
+          echo "Removing large system directories..."
+          sudo rm -rf /usr/share/dotnet /etc/apt/sources.list.d /usr/local/lib/android 2>/dev/null || true
+          sudo rm -rf /opt/ghc /opt/hostedtoolcache /usr/local/share/boost 2>/dev/null || true
+          sudo rm -rf /usr/local/graalvm /usr/local/share/powershell 2>/dev/null || true
+          sudo rm -rf /usr/local/share/chromium /usr/local/lib/node_modules 2>/dev/null || true
+          sudo rm -rf /usr/local/julia* /opt/pipx_bin 2>/dev/null || true
+          
+          # Remove swap files
+          echo "Removing swap files..."
           sudo swapoff -a
           sudo rm -f /swapfile /mnt/swapfile
+          
+          # Clean package cache and logs
+          echo "Cleaning package cache and system logs..."
+          sudo apt-get clean
+          sudo apt-get autoclean
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo rm -rf /var/cache/apt/archives/*
+          sudo rm -rf /var/log/*.log /var/log/*/*.log
+          sudo rm -rf /tmp/* /var/tmp/*
+          sudo journalctl --vacuum-time=1d
+          
+          # Update package lists
+          echo "Updating package lists..."
           sudo -E apt-get -y update
-          sudo -E apt-get -y purge azure-cli ghc* zulu* llvm* firefox google* dotnet* powershell openjdk* mongodb* moby* || true
+          
+          # Remove unnecessary packages
+          echo "Removing unnecessary packages..."
+          sudo -E apt-get -y purge azure-cli ghc* zulu* llvm* firefox google* dotnet* powershell openjdk* mongodb* moby* snapd || true
+          sudo -E apt-get -y purge mysql* postgresql* apache2* nginx* php* ruby* python3-pip || true
+          
+          # Install required packages for OpenWrt build
+          echo "Installing required packages for OpenWrt build..."
           sudo -E apt-get -y install $(curl -fsSL https://tinyurl.com/ubuntu2204-make-openwrt)
+          
+          # System maintenance
           sudo -E systemctl daemon-reload
           sudo -E apt-get -y autoremove --purge
           sudo -E apt-get clean
+          
+          # Clean user directories
+          echo "Cleaning user directories..."
           sudo sed -i '/NVM_DIR/d;/skel/d' /root/{.bashrc,.profile}
-          sudo rm -rf ~/{.cargo,.dotnet,.rustup}
+          sudo rm -rf ~/{.cargo,.dotnet,.rustup,.npm,.cache}
+          sudo rm -rf ~/.local/share/NuGet ~/.nuget
+          
+          # Set timezone
           sudo timedatectl set-timezone "${{ env.TZ }}"
+          
+          # Display disk usage after cleanup
+          echo "📊 Disk usage after cleanup:"
+          df -h
+          echo "Memory usage:"
+          free -h
+          
           echo "status=success" >> ${GITHUB_OUTPUT}
+
+      - name: Clean System Cache and Logs
+        id: cleanup
+        if: steps.init.outputs.status == 'success'
+        run: |
+          echo "🧹 Performing additional system cleanup..."
+          
+          # Clear systemd logs
+          sudo journalctl --rotate
+          sudo journalctl --vacuum-time=1s
+          
+          # Clear kernel logs
+          sudo dmesg -c > /dev/null 2>&1 || true
+          
+          # Clear bash history
+          history -c
+          > ~/.bash_history
+          
+          # Clear thumbnail cache
+          sudo rm -rf ~/.cache/thumbnails/*
+          sudo rm -rf /var/cache/thumbnails/*
+          
+          # Clear font cache
+          sudo rm -rf ~/.cache/fontconfig/*
+          sudo rm -rf /var/cache/fontconfig/*
+          
+          # Clear pip cache
+          sudo rm -rf ~/.cache/pip/*
+          sudo rm -rf /root/.cache/pip/*
+          
+          # Clear npm cache
+          sudo rm -rf ~/.npm/_cacache/*
+          sudo rm -rf /root/.npm/_cacache/*
+          
+          # Clear gem cache
+          sudo rm -rf ~/.gem/ruby/*/cache/*
+          sudo rm -rf /var/lib/gems/*/cache/*
+          
+          # Clear go cache
+          sudo rm -rf ~/.cache/go-build/*
+          sudo rm -rf /root/.cache/go-build/*
+          
+          # Clear rust cache
+          sudo rm -rf ~/.cargo/registry/cache/*
+          sudo rm -rf /root/.cargo/registry/cache/*
+          
+          # Clear browser cache
+          sudo rm -rf ~/.cache/google-chrome/*
+          sudo rm -rf ~/.cache/chromium/*
+          sudo rm -rf ~/.cache/mozilla/*
+          
+          # Clear temporary files
+          sudo find /tmp -type f -atime +1 -delete 2>/dev/null || true
+          sudo find /var/tmp -type f -atime +1 -delete 2>/dev/null || true
+          
+          # Clear old log files
+          sudo find /var/log -name "*.log.*" -delete 2>/dev/null || true
+          sudo find /var/log -name "*.gz" -delete 2>/dev/null || true
+          sudo find /var/log -name "*.1" -delete 2>/dev/null || true
+          
+          # Clear core dumps
+          sudo rm -f /var/crash/* 2>/dev/null || true
+          sudo rm -f /core.* 2>/dev/null || true
+          
+          # Sync filesystem
+          sync
+          
+          echo "📊 Final disk usage after complete cleanup:"
+          df -h
+          echo "Available memory:"
+          free -h
+          
+          echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -549,9 +674,60 @@ jobs:
           df -hT ${PWD}
           echo "status=success" >> $GITHUB_OUTPUT
 
+      - name: Pre-Build Cleanup
+        id: prebuild-cleanup
+        if: steps.customize.outputs.status == 'success'
+        run: |
+          echo "🧹 Performing pre-build cleanup..."
+          cd ${WORKING_DIR}
+          
+          # Clean build directories if they exist
+          if [ -d "build_dir" ]; then
+            echo "Cleaning build_dir..."
+            rm -rf build_dir/*
+          fi
+          
+          if [ -d "staging_dir" ]; then
+            echo "Cleaning staging_dir..."
+            find staging_dir -name "*.log" -delete 2>/dev/null || true
+            find staging_dir -name "*.tmp" -delete 2>/dev/null || true
+          fi
+          
+          if [ -d "tmp" ]; then
+            echo "Cleaning tmp directory..."
+            rm -rf tmp/*
+          fi
+          
+          if [ -d "logs" ]; then
+            echo "Cleaning logs directory..."
+            rm -rf logs/*
+          fi
+          
+          # Clean any existing bin directory
+          if [ -d "bin" ]; then
+            echo "Cleaning bin directory..."
+            rm -rf bin/*
+          fi
+          
+          # Remove any leftover lock files
+          find . -name "*.lock" -delete 2>/dev/null || true
+          find . -name ".built" -delete 2>/dev/null || true
+          
+          # Clean package download cache if exists
+          if [ -d "dl" ]; then
+            echo "Cleaning download cache..."
+            find dl -name "*.tmp" -delete 2>/dev/null || true
+            find dl -name "*.hash" -delete 2>/dev/null || true
+          fi
+          
+          echo "📊 Disk usage before build:"
+          df -h
+          
+          echo "status=success" >> $GITHUB_OUTPUT
+
       - name: Build Firmware Images
         id: build
-        if: steps.customize.outputs.status == 'success'
+        if: steps.prebuild-cleanup.outputs.status == 'success'
         run: |
           cd ${WORKING_DIR}
           mkdir -p compiled_images
@@ -559,10 +735,12 @@ jobs:
 
           # Clean if requested
           if [ "${CLEAN}" == "true" ]; then
+            echo "🧹 Running make clean..."
             make clean
           fi
             
           # Build image
+          echo "🔨 Starting firmware build..."
           time ./make-image.sh ${PROFILE} ${{ env.TUNNEL }}
             
           # Move and rename output files
@@ -604,8 +782,31 @@ jobs:
           ./scripts/RENAMEFW.sh
           echo "status=success" >> "$GITHUB_OUTPUT"
 
-      - name: Create Release
+      - name: Post-Build Cleanup
+        id: postbuild-cleanup
         if: steps.beforeupload.outputs.status == 'success'
+        run: |
+          echo "🧹 Performing post-build cleanup..."
+          cd ${WORKING_DIR}
+          
+          # Remove build artifacts to save space
+          rm -rf build_dir/* 2>/dev/null || true
+          rm -rf staging_dir/target-* 2>/dev/null || true
+          rm -rf tmp/* 2>/dev/null || true
+          rm -rf logs/* 2>/dev/null || true
+          
+          # Keep only the final images
+          find bin -name "*.buildinfo" -delete 2>/dev/null || true
+          find bin -name "*.manifest" -delete 2>/dev/null || true
+          find bin -name "*.json" -delete 2>/dev/null || true
+          
+          echo "📊 Final disk usage:"
+          df -h
+          
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        if: steps.postbuild-cleanup.outputs.status == 'success'
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
