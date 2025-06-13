@@ -177,8 +177,6 @@ jobs:
             - Tailscale
             - Eqosplus
             - Droidnet
-            - GPIO LED HG680P | B860H
-            - Rakitan Manager
             - Internet Detector
             - Conns monitor
             - Support Modem Rakitan + Autorekonek

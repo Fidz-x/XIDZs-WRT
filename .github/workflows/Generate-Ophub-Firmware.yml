@@ -26,8 +26,8 @@ on:
         type: choice
         options:
           - all-device
-          - Amlogic s905x HG680P Mod SDCard
-          - Amlogic s905x B860H Mod SDCard
+          - MOD-SDCARD Amlogic s905x HG680P
+          - MOD-SDCARD Amlogic s905x B860H
           - Amlogic s905x HG680P
           - Amlogic s905x B860H
           - Amlogic s922x GT-King-Pro
@@ -102,8 +102,8 @@ jobs:
           TARGET_JSON=$(cat << 'EOJ'
           {
             "target": [
-              "Amlogic s905x HG680P Mod SDCard",
-              "Amlogic s905x B860H Mod SDCard",
+              "MOD-SDCARD Amlogic s905x HG680P",
+              "MOD-SDCARD Amlogic s905x B860H",
               "Amlogic s905x HG680P",
               "Amlogic s905x B860H",
               "Amlogic s922x GT-King-Pro",
@@ -203,7 +203,7 @@ jobs:
             - Eqosplus
             - Droidnet
             - GPIO LED HG680P | B860H
-            - Rakitan Manager
+            - MOD-SDCARD For HG680P - B860H
             - Internet Detector
             - Conns monitor
             - Support Modem Rakitan + Autorekonek
@@ -311,13 +311,13 @@ jobs:
           echo "ARCH_3=aarch64_generic" >> $GITHUB_ENV
 
           case "$MATRIXTARGET" in
-            "Amlogic s905x HG680P Mod SDCard")
+            "MOD-SDCARD Amlogic s905x HG680P")
               TARGET_BUILD="s905x"
               KERNEL="5.15.y_6.1.y_6.6.y_6.12.y"
               echo "TARGET_BUILD=$TARGET_BUILD" >> $GITHUB_ENV
               echo "KERNEL=$KERNEL" >> $GITHUB_ENV
               ;;
-            "Amlogic s905x B860H Mod SDCard")
+            "MOD-SDCARD Amlogic s905x B860H")
               TARGET_BUILD="s905x-b860h"
               KERNEL="5.15.y_6.1.y_6.6.y_6.12.y"
               echo "TARGET_BUILD=$TARGET_BUILD" >> $GITHUB_ENV
