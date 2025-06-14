@@ -109,9 +109,6 @@ check_status "uci set network.tethering.device='usb0'" "Tethering device set to 
 check_status "uci set network.modem=interface" "Modem interface created"
 check_status "uci set network.modem.proto='dhcp'" "Modem protocol set to DHCP"
 check_status "uci set network.modem.device='eth1'" "Modem device set to eth1"
-check_status "uci set network.wan=interface" "Wan interface created"
-check_status "uci set network.wan.proto='none'" "Wan proto set to None"
-check_status "uci set network.wan.device='wwan0'" "Wan device set to wwan0"
 check_status "uci delete network.wan6" "delete wan6"
 check_status "uci commit network" "Network configuration committed"
 
@@ -232,6 +229,12 @@ else
     log_status "WARNING" "install2.sh not found, skipping"
 fi
 
+# add auto sinkron jam
+log_status "INFO" "Add Auto Sinkron Jam And Clean Cache...."
+check_status "sed -i '/exit 0/i #sh /usr/bin/jam_oc.sh bug.com' /etc/rc.local" "Added Auto Sinkron Jam Oc command to rc.local"
+check_status "sed -i '/exit 0/i #sh /usr/bin/jam_nikki.sh bug.com' /etc/rc.local" "Added Auto Sinkron Jam Nikki command to rc.local"
+check_status "sed -i '/exit 0/i sleep 2 && /sbin/free.sh' /etc/rc.local" "Added Clean Cache command to rc.local"
+
 # move jquery.min.js
 log_status "INFO" "Moving jQuery library..."
 check_status "mv /usr/share/netdata/web/lib/jquery-3.6.0.min.js /usr/share/netdata/web/lib/jquery-2.2.4.min.js" "jQuery library version changed"
@@ -241,7 +244,7 @@ log_status "INFO" "Creating VnStat directory..."
 check_status "mkdir -p /etc/vnstat" "VnStat directory created"
 
 # Sett Permission vnstat.conf
-log_status "INFO" "Sett Permission 600 vnstat.conf"
+log_status "INFO" "Sett Permission 600 vnstat.conf..."
 check_status "chmod 600 /etc/vnstat.conf"
 
 # restart netdata and vnstat
